@@ -68,7 +68,7 @@ Return a JSON array only. No explanations, no markdown.
     response = client.messages.create(
         model="claude-opus-4-6",
         max_tokens=4096,
-        thinking={"type": "enabled", "budget_tokens": 5000},
+        thinking={"type": "adaptive"},
         system=HUNTER_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
