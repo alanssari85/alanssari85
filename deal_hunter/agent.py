@@ -27,11 +27,11 @@ from deal_hunter.layers.optimization import run_optimization
 console = Console()
 
 DEFAULT_CATEGORIES = [
-    "خدمات الذكاء الاصطناعي وأتمتة المحتوى",
-    "تطوير المواقع والتطبيقات للشركات الصغيرة",
-    "تسويق رقمي وإدارة وسائل التواصل الاجتماعي",
-    "Dropshipping وAmazon FBA",
-    "استشارات وتدريب B2B",
+    "AI Services and Content Automation",
+    "Web and App Development for Small Businesses",
+    "Digital Marketing and Social Media Management",
+    "Dropshipping and Amazon FBA",
+    "B2B Consulting and Coaching",
 ]
 
 
@@ -74,8 +74,8 @@ class DealHunterAgent:
         """
         console.print(
             Panel.fit(
-                "[bold cyan]🎯 DealHunter AI — بدء جلسة البحث عن الفرص[/bold cyan]\n"
-                f"[dim]الفئات: {len(self.categories)} | أفضل: {self.top_n} فرص[/dim]",
+                "[bold cyan]🎯 DealHunter AI — Starting Opportunity Discovery Session[/bold cyan]\n"
+                f"[dim]Categories: {len(self.categories)} | Top: {self.top_n} opportunities[/dim]",
                 border_style="cyan",
             )
         )
@@ -91,7 +91,7 @@ class DealHunterAgent:
         ) as progress:
             for category in self.categories:
                 task = progress.add_task(
-                    f"مسح: [cyan]{category}[/cyan]", total=None
+                    f"Scanning: [cyan]{category}[/cyan]", total=None
                 )
                 opps = run_sensing(self.client, category)
                 for opp in opps:
@@ -100,7 +100,7 @@ class DealHunterAgent:
                 progress.remove_task(task)
 
         console.print(
-            f"[green]✓ تم اكتشاف {len(all_opportunities)} فرصة[/green]"
+            f"[green]✓ Discovered {len(all_opportunities)} opportunities[/green]"
         )
 
         # ── Layer 2 & 3: Analysis + Scoring ──
@@ -114,7 +114,7 @@ class DealHunterAgent:
         ) as progress:
             for opp in all_opportunities:
                 task = progress.add_task(
-                    f"تحليل: [yellow]{opp.get('name', '...')}[/yellow]",
+                    f"Analyzing: [yellow]{opp.get('name', '...')}[/yellow]",
                     total=None,
                 )
                 analysed = run_analysis(self.client, opp)
@@ -130,7 +130,7 @@ class DealHunterAgent:
         self._print_scoring_table(decided[:10])  # Show top 10
 
         console.print(
-            f"\n[green]✓ تم اختيار {len(selected)} فرص من أصل {len(decided)}[/green]"
+            f"\n[green]✓ Selected {len(selected)} opportunities out of {len(decided)}[/green]"
         )
 
         # Limit to top N
@@ -147,7 +147,7 @@ class DealHunterAgent:
         ) as progress:
             for opp in top_opportunities:
                 task = progress.add_task(
-                    f"تخطيط: [magenta]{opp.get('name', '...')}[/magenta]",
+                    f"Planning: [magenta]{opp.get('name', '...')}[/magenta]",
                     total=None,
                 )
                 planned = run_planning(self.client, opp)
@@ -187,55 +187,55 @@ class DealHunterAgent:
             execution = opp.get("execution", {})
 
             results.append({
-                "الفرصة": opp.get("name", "غير محدد"),
-                "مصدرها": opp.get("source", "غير محدد"),
-                "التحليل": {
-                    "الطلب": analysis.get("demand_level", "غير محدد"),
-                    "المنافسة": analysis.get("competition_level", "غير محدد"),
-                    "الربح المتوقع": analysis.get("estimated_revenue_usd", {}),
-                    "السرعة": f"{analysis.get('time_to_first_revenue_days', '?')} يوم",
+                "opportunity": opp.get("name", "N/A"),
+                "source": opp.get("source", "N/A"),
+                "analysis": {
+                    "demand": analysis.get("demand_level", "N/A"),
+                    "competition": analysis.get("competition_level", "N/A"),
+                    "estimated_revenue": analysis.get("estimated_revenue_usd", {}),
+                    "time_to_revenue": f"{analysis.get('time_to_first_revenue_days', '?')} days",
                 },
-                "التقييم": {
-                    "الربحية": scores.get("profitability", {}).get("score", 0),
-                    "السهولة": scores.get("ease", {}).get("score", 0),
-                    "التوسع": scores.get("scalability", {}).get("score", 0),
-                    "المخاطر": scores.get("risk", {}).get("score", 0),
-                    "النتيجة النهائية": scores.get("final_score", 0),
+                "scores": {
+                    "profitability": scores.get("profitability", {}).get("score", 0),
+                    "ease": scores.get("ease", {}).get("score", 0),
+                    "scalability": scores.get("scalability", {}).get("score", 0),
+                    "risk": scores.get("risk", {}).get("score", 0),
+                    "final_score": scores.get("final_score", 0),
                 },
-                "القرار": opp.get("decision", "غير محدد"),
-                "خطة التنفيذ": [
-                    f"الخطوة {s.get('step', i+1)}: {s.get('action', '')}"
+                "decision": opp.get("decision", "N/A"),
+                "execution_plan": [
+                    f"Step {s.get('step', i+1)}: {s.get('action', '')}"
                     for i, s in enumerate(
                         plan.get("execution_steps", [])[:6]
                     )
                 ],
-                "طريقة الربح": plan.get("profit_mechanism", "غير محدد"),
-                "المحتوى المُنشأ": execution.get("content", "")[:500] + "...",
-                "مستوى الثقة": f"{min(100, int(scores.get('final_score', 0) * 4))}%",
+                "profit_mechanism": plan.get("profit_mechanism", "N/A"),
+                "generated_content": execution.get("content", "")[:500] + "...",
+                "confidence": f"{min(100, int(scores.get('final_score', 0) * 4))}%",
             })
 
         return {
-            "جلسة_DealHunter_AI": {
-                "الفرص_المختارة": results,
-                "تقرير_التحسين": optimization,
+            "DealHunter_AI_Session": {
+                "selected_opportunities": results,
+                "optimization_report": optimization,
             }
         }
 
     def _print_scoring_table(self, opportunities: list[dict]) -> None:
         """Print a rich table of scored opportunities."""
         table = Table(
-            title="🏆 جدول التقييم",
+            title="🏆 Scoring Table",
             box=box.ROUNDED,
             show_header=True,
             header_style="bold cyan",
         )
-        table.add_column("الفرصة", style="white", min_width=25)
-        table.add_column("الربحية", justify="center")
-        table.add_column("السهولة", justify="center")
-        table.add_column("التوسع", justify="center")
-        table.add_column("المخاطر", justify="center")
-        table.add_column("النتيجة", justify="center", style="bold")
-        table.add_column("القرار", style="dim")
+        table.add_column("Opportunity", style="white", min_width=25)
+        table.add_column("Profitability", justify="center")
+        table.add_column("Ease", justify="center")
+        table.add_column("Scalability", justify="center")
+        table.add_column("Risk", justify="center")
+        table.add_column("Score", justify="center", style="bold")
+        table.add_column("Decision", style="dim")
 
         for opp in opportunities:
             scores = opp.get("scores", {})
@@ -249,7 +249,7 @@ class DealHunterAgent:
             )
 
             table.add_row(
-                opp.get("name", "غير محدد")[:30],
+                opp.get("name", "N/A")[:30],
                 str(scores.get("profitability", {}).get("score", 0)),
                 str(scores.get("ease", {}).get("score", 0)),
                 str(scores.get("scalability", {}).get("score", 0)),
@@ -265,30 +265,30 @@ class DealHunterAgent:
         console.print("\n")
         console.print(
             Panel.fit(
-                "[bold green]✅ اكتملت جلسة DealHunter AI[/bold green]",
+                "[bold green]✅ DealHunter AI Session Complete[/bold green]",
                 border_style="green",
             )
         )
 
-        session = report.get("جلسة_DealHunter_AI", {})
-        opportunities = session.get("الفرص_المختارة", [])
-        optimization = session.get("تقرير_التحسين", {})
+        session = report.get("DealHunter_AI_Session", {})
+        opportunities = session.get("selected_opportunities", [])
+        optimization = session.get("optimization_report", {})
 
         for i, opp in enumerate(opportunities, 1):
-            score = opp.get("التقييم", {}).get("النتيجة النهائية", 0)
-            confidence = opp.get("مستوى الثقة", "0%")
+            score = opp.get("scores", {}).get("final_score", 0)
+            confidence = opp.get("confidence", "0%")
             console.print(
-                f"[bold cyan]{i}.[/bold cyan] [white]{opp.get('الفرصة', '')}[/white] "
-                f"| النتيجة: [yellow]{score}[/yellow] "
-                f"| الثقة: [green]{confidence}[/green]"
+                f"[bold cyan]{i}.[/bold cyan] [white]{opp.get('opportunity', '')}[/white] "
+                f"| Score: [yellow]{score}[/yellow] "
+                f"| Confidence: [green]{confidence}[/green]"
             )
             console.print(
-                f"   [dim]طريقة الربح: {str(opp.get('طريقة الربح', ''))[:80]}[/dim]"
+                f"   [dim]Profit mechanism: {str(opp.get('profit_mechanism', ''))[:80]}[/dim]"
             )
 
         top = optimization.get("top_opportunity", "—")
         potential = optimization.get("estimated_monthly_potential_usd", 0)
         console.print(
-            f"\n[bold]أفضل فرصة:[/bold] [cyan]{top}[/cyan]"
-            f" | [bold]إمكانية شهرية:[/bold] [green]${potential:,.0f}[/green]"
+            f"\n[bold]Best opportunity:[/bold] [cyan]{top}[/cyan]"
+            f" | [bold]Monthly potential:[/bold] [green]${potential:,.0f}[/green]"
         )
