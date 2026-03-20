@@ -1,57 +1,71 @@
 """
-Layer 4 — Decision Engine
-اختيار الفرص الأعلى درجة وتصفية الفرص غير المجدية.
+Decision Engine — Pick ONE Winner
+
+Rules:
+- Must have final_score >= 30 (out of 50) to qualify
+- Must have risk_level score >= 5 (not too risky)
+- Pick the single highest-scoring opportunity
+- If nothing qualifies, lower threshold to >= 25 and retry
+- If still nothing, return the best available with a warning
 """
 
-MIN_SCORE_THRESHOLD = 15.0
-MAX_RISK_THRESHOLD = 8
+from __future__ import annotations
+
+MIN_SCORE = 30.0
+MIN_SCORE_FALLBACK = 25.0
+MIN_RISK_SCORE = 5
 
 
-def run_decision(opportunities: list[dict]) -> list[dict]:
+def run_decision(opportunities: list[dict]) -> dict:
     """
-    Filter and rank opportunities by their final score.
+    Pick exactly ONE winning opportunity from the scored list.
 
-    Rules:
-    - Discard opportunities with final_score < MIN_SCORE_THRESHOLD
-    - Discard opportunities with risk score > MAX_RISK_THRESHOLD
-    - Sort by final_score descending
-    - Return top candidates with decision metadata
+    Returns a dict with:
+      - 'winner': the selected opportunity dict
+      - 'runner_ups': the rest, sorted by score
+      - 'selection_note': explanation of the decision
     """
-    decisions = []
-
-    for opp in opportunities:
-        scores = opp.get("scores", {})
-        final_score = scores.get("final_score", 0)
-        risk_score = scores.get("risk", {}).get("score", 10)
-
-        if final_score < MIN_SCORE_THRESHOLD:
-            decision = "مرفوض — درجة منخفضة"
-            selected = False
-        elif risk_score > MAX_RISK_THRESHOLD:
-            decision = "مرفوض — مخاطرة عالية"
-            selected = False
-        else:
-            verdict = scores.get("verdict", "متوسط")
-            if final_score >= 22:
-                decision = f"مختار — فرصة ممتازة ({verdict})"
-                selected = True
-            elif final_score >= 17:
-                decision = f"مختار — فرصة جيدة ({verdict})"
-                selected = True
-            else:
-                decision = f"مشروط — يحتاج مراجعة ({verdict})"
-                selected = True
-
-        decisions.append({
-            **opp,
-            "decision": decision,
-            "selected": selected,
-        })
+    if not opportunities:
+        return {"winner": None, "runner_ups": [], "selection_note": "No opportunities to evaluate."}
 
     # Sort by final_score descending
-    decisions.sort(
+    ranked = sorted(
+        opportunities,
         key=lambda x: x.get("scores", {}).get("final_score", 0),
         reverse=True,
     )
 
-    return decisions
+    def qualifies(opp: dict, threshold: float) -> bool:
+        scores = opp.get("scores", {})
+        final = scores.get("final_score", 0)
+        risk = scores.get("risk_level", {}).get("score", 0)
+        return final >= threshold and risk >= MIN_RISK_SCORE
+
+    # Try strict threshold first
+    qualified = [o for o in ranked if qualifies(o, MIN_SCORE)]
+    note = f"Selected from {len(qualified)} qualifying opportunities (score ≥ {MIN_SCORE}/50)."
+
+    if not qualified:
+        # Fallback threshold
+        qualified = [o for o in ranked if qualifies(o, MIN_SCORE_FALLBACK)]
+        note = (
+            f"No opportunity met the strict threshold ({MIN_SCORE}/50). "
+            f"Selected best available (score ≥ {MIN_SCORE_FALLBACK}/50)."
+        )
+
+    if not qualified:
+        # Last resort: just pick the highest scorer with a warning
+        qualified = [ranked[0]]
+        note = (
+            "WARNING: No opportunity met minimum quality thresholds. "
+            "Selecting highest scorer. Review results carefully before executing."
+        )
+
+    winner = qualified[0]
+    runner_ups = [o for o in ranked if o is not winner]
+
+    return {
+        "winner": winner,
+        "runner_ups": runner_ups,
+        "selection_note": note,
+    }

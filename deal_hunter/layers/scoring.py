@@ -1,67 +1,82 @@
 """
-Layer 3 — Scoring Engine
-حساب درجة لكل فرصة: الربحية، السهولة، التوسع، المخاطر.
-Opportunity Score = (الربحية + السهولة + التوسع) - المخاطر
+Evaluator Mode — Opportunity Scoring Engine
+
+Scores each opportunity on 5 criteria (0–10 each):
+  1. profit_potential      — how much money can this make?
+  2. ease_of_execution     — how easy is it to start and deliver?
+  3. speed_to_first_payment — how fast can you get paid? (10 = same day)
+  4. competition_level     — how crowded is this? (10 = no competition)
+  5. risk_level            — how safe is it? (10 = nearly zero risk)
+
+final_score = sum of all 5 (max = 50)
 """
 
-import anthropic
+from __future__ import annotations
+
 import json
+import anthropic
 
 
-SCORING_SYSTEM = """أنت محرك تقييم كمي للفرص التجارية.
-أعط درجات من 0 إلى 10 لكل معيار بناءً على التحليل المقدم.
-كن دقيقاً وقابلاً للمقارنة عبر الفرص المختلفة.
+EVALUATOR_SYSTEM = """You are DealHunter AI operating in EVALUATOR MODE.
+
+Your job: score opportunities with ruthless objectivity.
+
+Scoring rules:
+- profit_potential      (0-10): 10 = $500+/week easily, 0 = barely pays
+- ease_of_execution     (0-10): 10 = anyone can do it today, 0 = requires rare skills
+- speed_to_first_payment(0-10): 10 = paid within 24 hours, 0 = 30+ days
+- competition_level     (0-10): 10 = blue ocean, 0 = brutal red ocean
+- risk_level            (0-10): 10 = zero risk, 0 = could lose money
+
+Be HONEST. Overestimating scores wastes execution time on bad opportunities.
+Think like an investor evaluating a deal, not a cheerleader.
 """
 
 
 def run_scoring(client: anthropic.Anthropic, opportunity: dict) -> dict:
     """
-    Score an opportunity on profitability, ease, scalability, and risk.
-    Returns opportunity dict with scores and final score.
+    Evaluator Mode: score a single opportunity on 5 criteria.
+    Returns opportunity dict enriched with 'scores' and 'final_score'.
     """
-    analysis = opportunity.get("analysis", {})
-
     prompt = f"""
-قيّم هذه الفرصة وأعطها درجات:
+Evaluate this opportunity:
 
-الفرصة: {opportunity.get('name', 'غير محدد')}
-الطلب: {analysis.get('demand_level', 'غير محدد')}
-المنافسة: {analysis.get('competition_level', 'غير محدد')}
-الإيراد المتوقع: {analysis.get('estimated_revenue_usd', {})}
-الوقت للدخل الأول: {analysis.get('time_to_first_revenue_days', 'غير محدد')} يوم
-إمكانية الأتمتة: {analysis.get('automation_potential', 'غير محدد')}
-الحواجز: {analysis.get('barriers_to_entry', 'غير محدد')}
+Name: {opportunity.get('name', 'N/A')}
+Source: {opportunity.get('source', 'N/A')}
+Description: {opportunity.get('description', 'N/A')}
+Target audience: {opportunity.get('target_audience', 'N/A')}
+Time to first payment: {opportunity.get('time_to_first_payment_days', '?')} days
+Why now: {opportunity.get('why_now', 'N/A')}
 
-أعد JSON بالدرجات (0-10 لكل معيار):
+Return ONLY this JSON (no markdown, no extra text):
 {{
-  "profitability": {{
-    "score": 0,
-    "reason": "سبب الدرجة"
+  "profit_potential": {{
+    "score": <0-10>,
+    "reason": "<one sentence>"
   }},
-  "ease": {{
-    "score": 0,
-    "reason": "سبب الدرجة"
+  "ease_of_execution": {{
+    "score": <0-10>,
+    "reason": "<one sentence>"
   }},
-  "scalability": {{
-    "score": 0,
-    "reason": "سبب الدرجة"
+  "speed_to_first_payment": {{
+    "score": <0-10>,
+    "reason": "<one sentence>"
   }},
-  "risk": {{
-    "score": 0,
-    "reason": "سبب المخاطرة"
+  "competition_level": {{
+    "score": <0-10>,
+    "reason": "<one sentence>"
   }},
-  "final_score": 0,
-  "verdict": "ممتاز/جيد/متوسط/ضعيف"
+  "risk_level": {{
+    "score": <0-10>,
+    "reason": "<one sentence>"
+  }}
 }}
-
-احسب: final_score = (profitability + ease + scalability) - risk
-أعد JSON فقط.
 """
 
     response = client.messages.create(
         model="claude-opus-4-6",
         max_tokens=1024,
-        system=SCORING_SYSTEM,
+        system=EVALUATOR_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -71,18 +86,24 @@ def run_scoring(client: anthropic.Anthropic, opportunity: dict) -> dict:
 
     start = text.find("{")
     end = text.rfind("}") + 1
-    scores = {}
+    scores: dict = {}
     if start != -1 and end > start:
         try:
             scores = json.loads(text[start:end])
         except json.JSONDecodeError:
             pass
 
-    # Recalculate final_score to ensure correctness
-    p = scores.get("profitability", {}).get("score", 0)
-    e = scores.get("ease", {}).get("score", 0)
-    s = scores.get("scalability", {}).get("score", 0)
-    r = scores.get("risk", {}).get("score", 0)
-    scores["final_score"] = round((p + e + s) - r, 1)
+    # Calculate final score (max = 50)
+    total = sum(
+        scores.get(k, {}).get("score", 0)
+        for k in (
+            "profit_potential",
+            "ease_of_execution",
+            "speed_to_first_payment",
+            "competition_level",
+            "risk_level",
+        )
+    )
+    scores["final_score"] = round(total, 1)
 
     return {**opportunity, "scores": scores}

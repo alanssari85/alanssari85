@@ -1,55 +1,75 @@
 """
-Layer 1 — Opportunity Sensing Layer
-مسح مصادر الفرص واستخراج الفرص ذات الطلب الحقيقي.
+Hunter Mode — Opportunity Discovery Layer
+
+Scans for opportunities that can generate REAL money within 1–7 days.
+Focus: Services · Arbitrage · B2B
+Rejects: products, long dev cycles, >7 days to first payment
 """
 
-import anthropic
+from __future__ import annotations
+
 import json
+import anthropic
 
 
-SENSING_SYSTEM = """أنت محلل فرص ربح محترف اسمك DealHunter AI.
-مهمتك: مسح المصادر الرقمية واستخراج فرص ربح حقيقية وقابلة للتنفيذ.
+HUNTER_SYSTEM = """You are DealHunter AI operating in HUNTER MODE.
 
-ركز على:
-- منصات العمل الحر (Freelance): Upwork, Fiverr, Toptal
-- الأسواق الإلكترونية (Marketplaces): Amazon, eBay, Etsy, Gumroad
-- أفكار SaaS وأدوات AI
-- فرص Arbitrage (شراء رخيص وبيع بسعر أعلى)
-- خدمات تسويق وإنشاء محتوى
-- استشارات وخدمات B2B
+Your ONLY job: discover opportunities that produce REAL revenue within 1–7 days.
 
-استخرج 5 فرص على الأقل لكل فئة تُطلب منك.
-كن محدداً: اذكر المنصة، نوع الخدمة، الجمهور المستهدف.
+━━━ ACCEPT ━━━
+• Services (freelance, consulting, done-for-you)
+• Arbitrage (skill arbitrage, info arbitrage, buy-low-sell-high)
+• B2B opportunities (businesses that need help RIGHT NOW)
+
+━━━ REJECT — immediately discard if: ━━━
+• Requires building a product or SaaS from scratch
+• Time to first payment > 7 days
+• Needs significant upfront capital
+• Too saturated with zero differentiation angle
+• Requires a team or complex infrastructure
+
+Be SPECIFIC: exact service, exact customer, exact platform to find them.
+Think like a salesperson, not an engineer.
 """
 
 
-def run_sensing(client: anthropic.Anthropic, category: str) -> list[dict]:
+def run_sensing(
+    client: anthropic.Anthropic,
+    category: str,
+) -> tuple[list[dict], list[dict]]:
     """
-    Scan opportunity sources for a given category.
-    Returns a list of raw opportunity dicts.
+    Hunter Mode: scan a category for fast-money opportunities.
+
+    Returns:
+        (valid_opportunities, rejected_opportunities)
     """
     prompt = f"""
-امسح فرص الربح في فئة: **{category}**
+Hunt for profit opportunities in: **{category}**
 
-لكل فرصة تجدها، أعد JSON بهذا الشكل:
+For EACH opportunity you find, return a JSON object:
 {{
-  "name": "اسم الفرصة",
-  "source": "المصدر / المنصة",
-  "description": "وصف مختصر",
-  "target_audience": "الجمهور المستهدف",
-  "estimated_monthly_demand": "مرتفع/متوسط/منخفض",
-  "keywords": ["كلمة1", "كلمة2"]
+  "name": "specific opportunity name",
+  "source": "exact platform or channel",
+  "description": "exactly what you do to make money — be specific",
+  "target_audience": "specific customer type (industry, size, role)",
+  "time_to_first_payment_days": <integer 1-7>,
+  "why_now": "why this works in the current market",
+  "rejected": false,
+  "rejection_reason": null
 }}
 
-أعد قائمة JSON فقط بدون أي نص إضافي. مثال:
-[{{"name": "...", "source": "...", ...}}, ...]
+If an opportunity FAILS the criteria, still include it with:
+  "rejected": true
+  "rejection_reason": "exact reason"
+
+Return a JSON array only. No explanations, no markdown.
 """
 
     response = client.messages.create(
         model="claude-opus-4-6",
         max_tokens=4096,
-        thinking={"type": "adaptive"},
-        system=SENSING_SYSTEM,
+        thinking={"type": "enabled", "budget_tokens": 5000},
+        system=HUNTER_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -57,13 +77,17 @@ def run_sensing(client: anthropic.Anthropic, category: str) -> list[dict]:
         (b.text for b in response.content if b.type == "text"), "[]"
     )
 
-    # Extract JSON array from response
     start = text.find("[")
     end = text.rfind("]") + 1
     if start != -1 and end > start:
         try:
-            return json.loads(text[start:end])
+            all_opps = json.loads(text[start:end])
+            valid = [o for o in all_opps if not o.get("rejected", False)]
+            rejected = [o for o in all_opps if o.get("rejected", False)]
+            for o in valid:
+                o["category"] = category
+            return valid, rejected
         except json.JSONDecodeError:
             pass
 
-    return []
+    return [], []

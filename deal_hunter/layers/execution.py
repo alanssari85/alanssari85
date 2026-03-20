@@ -1,73 +1,119 @@
 """
-Layer 6 — Execution Layer
-محاكاة التنفيذ: كتابة عرض، رسالة تسويقية، أو وصف خدمة.
+Closer Mode — Convert the Winner Into a READY-TO-SELL Offer
+
+Mandatory output (as requested):
+  opportunity, target_customer, pain_point, solution,
+  value_proposition, how_it_makes_money, pricing_model,
+  expected_earnings_7_days, execution_plan, sales_message, confidence
+
+My additions (make it truly sales-ready):
+  top_objections         — the 3 objections buyers will raise
+  objection_responses    — how to crush each objection
+  outreach_channels      — exactly where to find the target customer
+  follow_up_sequence     — 3-step follow-up if no reply
 """
 
+from __future__ import annotations
+
+import json
 import anthropic
 
 
-EXECUTION_SYSTEM = """أنت copywriter ومسوّق رقمي محترف.
-اكتب محتوى مقنعاً وفعالاً يحول القراء إلى عملاء.
-استخدم أسلوباً واضحاً ومباشراً. ركز على القيمة والنتائج.
+CLOSER_SYSTEM = """You are DealHunter AI operating in CLOSER MODE.
+
+Your job: transform a raw opportunity into a READY-TO-SELL offer.
+
+Rules:
+- Think like a TOP salesperson, not an engineer
+- Every word must serve the sale
+- Be specific: no vague platitudes, no generic statements
+- The sales_message must be copy-paste ready (< 150 words)
+- execution_plan must have exactly 5 steps, each completable within 24 hours
+- expected_earnings_7_days must be a realistic dollar range, not a dream
+- confidence must reflect reality (70–90% is honest, 99% is a lie)
 """
 
 
-def run_execution(
-    client: anthropic.Anthropic,
-    opportunity: dict,
-    output_type: str = "offer",
-) -> dict:
+def run_execution(client: anthropic.Anthropic, winner: dict) -> dict:
     """
-    Generate execution artifacts for the opportunity.
-
-    output_type options:
-    - "offer"       : Service offer / proposal
-    - "pitch"       : Cold outreach message
-    - "listing"     : Marketplace listing description
-    - "landing"     : Landing page copy
+    Closer Mode: generate a complete sellable offer for the winning opportunity.
+    Returns a dict with 'offer' key containing the full JSON offer.
     """
-    plan = opportunity.get("plan", {})
-    analysis = opportunity.get("analysis", {})
-
-    type_instructions = {
-        "offer": "اكتب عرض خدمة احترافي (Service Proposal) يمكن إرساله للعملاء المحتملين",
-        "pitch": "اكتب رسالة تواصل بارد (Cold Outreach) قصيرة ومقنعة لجذب أول عميل",
-        "listing": "اكتب وصف خدمة لمنصة فايفر أو أبورك يجذب العملاء ويحقق مبيعات",
-        "landing": "اكتب نص صفحة هبوط (Landing Page) مقنع لهذه الخدمة",
-    }
-
-    instruction = type_instructions.get(output_type, type_instructions["offer"])
+    scores = winner.get("scores", {})
 
     prompt = f"""
-{instruction}
+Convert this winning opportunity into a ready-to-sell offer:
 
-الفرصة: {opportunity.get('name', 'غير محدد')}
-آلية الربح: {plan.get('profit_mechanism', 'غير محدد')}
-الجمهور المستهدف: {analysis.get('', opportunity.get('target_audience', 'غير محدد'))}
-استراتيجية التسعير: {plan.get('pricing_strategy', 'غير محدد')}
-الزاوية المميزة: {analysis.get('unique_angle', 'غير محدد')}
-توظيف الذكاء الاصطناعي: {analysis.get('ai_leverage', 'غير محدد')}
+Opportunity: {winner.get('name', 'N/A')}
+Description: {winner.get('description', 'N/A')}
+Target audience: {winner.get('target_audience', 'N/A')}
+Source / platform: {winner.get('source', 'N/A')}
+Why now: {winner.get('why_now', 'N/A')}
+Time to first payment: {winner.get('time_to_first_payment_days', '?')} days
+Profit potential score: {scores.get('profit_potential', {}).get('score', 'N/A')}/10
+Ease score: {scores.get('ease_of_execution', {}).get('score', 'N/A')}/10
 
-اكتب المحتوى بشكل كامل وجاهز للاستخدام الفوري.
-استخدم اللغة العربية أو الإنجليزية حسب ما يناسب المنصة المستهدفة.
+Return ONLY this JSON (no markdown, no extra text):
+{{
+  "opportunity": "<name of the opportunity>",
+  "target_customer": "<specific customer profile: industry, company size, role, pain trigger>",
+  "pain_point": "<the exact problem they are losing money or time over>",
+  "solution": "<exactly what you deliver and how — one clear sentence>",
+  "value_proposition": "<result + timeframe + differentiator, e.g. 'We double your lead volume in 30 days using AI, with zero extra headcount'>",
+  "how_it_makes_money": "<step-by-step: find client → deliver → collect payment>",
+  "pricing_model": "<exact pricing: e.g. '$500 flat fee', '$1,500/month retainer', '20% of revenue generated'>",
+  "expected_earnings_7_days": "<realistic range, e.g. '$500–$2,000 from 1–2 clients'>",
+  "execution_plan": [
+    "Step 1 (Day 1): <specific action>",
+    "Step 2 (Day 1–2): <specific action>",
+    "Step 3 (Day 2–3): <specific action>",
+    "Step 4 (Day 3–5): <specific action>",
+    "Step 5 (Day 5–7): <specific action>"
+  ],
+  "sales_message": "<copy-paste ready cold outreach message, max 150 words, conversational tone, ends with one clear call to action>",
+  "confidence": "<percentage, e.g. '82%'>",
+  "top_objections": [
+    "<objection 1>",
+    "<objection 2>",
+    "<objection 3>"
+  ],
+  "objection_responses": [
+    "<response to objection 1>",
+    "<response to objection 2>",
+    "<response to objection 3>"
+  ],
+  "outreach_channels": [
+    "<channel 1: e.g. LinkedIn Sales Navigator — search by job title + industry>",
+    "<channel 2>",
+    "<channel 3>"
+  ],
+  "follow_up_sequence": [
+    "Day 2: <follow-up message if no reply>",
+    "Day 5: <second follow-up — add new value>",
+    "Day 10: <final break-up message that often triggers replies>"
+  ]
+}}
 """
 
     response = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=2048,
-        system=EXECUTION_SYSTEM,
+        max_tokens=3000,
+        system=CLOSER_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    content = next(
-        (b.text for b in response.content if b.type == "text"),
-        "لم يتم إنشاء المحتوى",
+    text = next(
+        (b.text for b in response.content if b.type == "text"), "{}"
     )
 
-    return {
-        **opportunity,
-        "execution": {
-            "type": output_type,
-            "content": content,
-        },
-    }
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    offer: dict = {}
+    if start != -1 and end > start:
+        try:
+            offer = json.loads(text[start:end])
+        except json.JSONDecodeError:
+            # If JSON parsing fails, store raw text for debugging
+            offer = {"raw": text, "parse_error": True}
+
+    return {**winner, "offer": offer}

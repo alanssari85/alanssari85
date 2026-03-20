@@ -1,73 +1,76 @@
 """
-Layer 7 — Optimization Layer
-تعلم من النتائج وتحسين الاستراتيجية.
+Optimization Layer — Learn and Improve for Next Session
+
+Analyzes all evaluated opportunities (not just the winner) to extract
+patterns and recommendations for the next hunting cycle.
 """
 
-import anthropic
+from __future__ import annotations
+
 import json
+import anthropic
 
 
-OPTIMIZATION_SYSTEM = """أنت محلل أداء ومحسّن استراتيجي.
-درّس النتائج واستخرج دروساً قابلة للتطبيق.
-ركز على ما يمكن تحسينه في الجولة القادمة.
+OPTIMIZATION_SYSTEM = """You are DealHunter AI in OPTIMIZATION MODE.
+
+Analyze this session's results and extract actionable lessons.
+Be brutally honest about what patterns emerged.
+Output only what will make the NEXT session more profitable.
 """
 
 
 def run_optimization(
     client: anthropic.Anthropic,
-    session_results: list[dict],
+    all_scored: list[dict],
+    winner: dict,
+    rejected_log: list[dict],
 ) -> dict:
     """
-    Analyze session results and generate optimization insights.
-
-    session_results: list of processed opportunities with all layers data.
-    Returns optimization report with lessons and next-cycle recommendations.
+    Analyze session results and produce next-cycle recommendations.
     """
-    # Summarize results for analysis
     summary = []
-    for opp in session_results:
+    for opp in all_scored:
         scores = opp.get("scores", {})
         summary.append({
-            "name": opp.get("name", "غير محدد"),
-            "category": opp.get("source", "غير محدد"),
+            "name": opp.get("name", "N/A"),
+            "category": opp.get("category", "N/A"),
             "final_score": scores.get("final_score", 0),
-            "selected": opp.get("selected", False),
-            "verdict": scores.get("verdict", "غير محدد"),
-            "profitability": scores.get("profitability", {}).get("score", 0),
-            "ease": scores.get("ease", {}).get("score", 0),
-            "scalability": scores.get("scalability", {}).get("score", 0),
-            "risk": scores.get("risk", {}).get("score", 0),
+            "profit_potential": scores.get("profit_potential", {}).get("score", 0),
+            "ease": scores.get("ease_of_execution", {}).get("score", 0),
+            "speed": scores.get("speed_to_first_payment", {}).get("score", 0),
+            "competition": scores.get("competition_level", {}).get("score", 0),
+            "risk": scores.get("risk_level", {}).get("score", 0),
         })
 
     prompt = f"""
-حلّل نتائج جلسة البحث عن الفرص هذه وأعد تقرير تحسين:
+Session summary:
+- Total opportunities evaluated: {len(all_scored)}
+- Opportunities rejected by Hunter (before scoring): {len(rejected_log)}
+- Winner: {winner.get('name', 'N/A')} (score: {winner.get('scores', {}).get('final_score', 0)}/50)
 
-النتائج:
+Scored opportunities:
 {json.dumps(summary, ensure_ascii=False, indent=2)}
 
-أعد تقرير JSON:
+Return ONLY this JSON:
 {{
-  "top_opportunity": "اسم أفضل فرصة",
-  "top_category": "أفضل فئة/مجال",
-  "patterns_found": ["نمط1", "نمط2"],
-  "avoided_mistakes": ["خطأ تجنبناه1", "خطأ2"],
-  "next_cycle_focus": ["توجيه1", "توجيه2"],
-  "scoring_calibration": "هل نحتاج تعديل معايير التقييم؟",
-  "recommended_categories_next": ["فئة1", "فئة2"],
-  "confidence_level": "عالي/متوسط/منخفض",
-  "estimated_monthly_potential_usd": 0,
-  "action_items": [
-    {{"priority": "عالي", "action": "الإجراء", "deadline": "الموعد"}}
-  ]
+  "winning_pattern": "<what made the winner better than the rest — one insight>",
+  "worst_categories": ["<category that consistently scored low>"],
+  "best_categories": ["<category that consistently scored high>"],
+  "common_rejection_reason": "<most frequent reason opportunities were rejected>",
+  "next_session_focus": [
+    "<specific action 1 to find better opportunities next time>",
+    "<specific action 2>",
+    "<specific action 3>"
+  ],
+  "categories_to_add": ["<new category to explore next session>"],
+  "categories_to_drop": ["<category that wasted time this session>"],
+  "estimated_improvement_next_session": "<e.g. 'expect 20% higher winner score by focusing on X'>"
 }}
-
-أعد JSON فقط.
 """
 
     response = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=2048,
-        thinking={"type": "adaptive"},
+        max_tokens=1024,
         system=OPTIMIZATION_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -78,7 +81,7 @@ def run_optimization(
 
     start = text.find("{")
     end = text.rfind("}") + 1
-    report = {}
+    report: dict = {}
     if start != -1 and end > start:
         try:
             report = json.loads(text[start:end])
